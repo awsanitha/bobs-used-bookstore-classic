@@ -1,13 +1,16 @@
 ﻿using Bookstore.Domain.Books;
 using Bookstore.Domain.ReferenceData;
 using System.Collections.Generic;
-using System.Data.Entity;
+// using System.Data.Entity; // EF6 - commented out for EF Core migration
 
 namespace Bookstore.Data
 {
-    public class BookstoreDbInitializer : DropCreateDatabaseIfModelChanges<ApplicationDbContext>
+    // TODO: Convert to EF Core seeding approach
+    // public class BookstoreDbInitializer : DropCreateDatabaseIfModelChanges<ApplicationDbContext>
+    public class BookstoreDbInitializer
     {
-        protected override void Seed(ApplicationDbContext context)
+        // protected override void Seed(ApplicationDbContext context)
+        public static void Seed(ApplicationDbContext context)
         {
             var referenceDataItems = new List<ReferenceDataItem> {
                 new ReferenceDataItem(ReferenceDataType.BookType, "Hardcover") { Id = 1 },
