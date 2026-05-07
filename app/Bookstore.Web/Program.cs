@@ -1,0 +1,197 @@
+using BobsBookstoreClassic.Data;
+using Bookstore.Data;
+using Bookstore.Data.FileServices;
+using Bookstore.Data.ImageResizeService;
+using Bookstore.Data.ImageValidationServices;
+using Bookstore.Data.Repositories;
+using Bookstore.Domain;
+using Bookstore.Domain.Addresses;
+using Bookstore.Domain.Books;
+using Bookstore.Domain.Carts;
+using Bookstore.Domain.Customers;
+using Bookstore.Domain.Offers;
+using Bookstore.Domain.Orders;
+using Bookstore.Domain.ReferenceData;
+using Bookstore.Web;
+using Bookstore.Web.Helpers;
+using Amazon.Rekognition;
+using Amazon.S3;
+using Amazon.SimpleSystemsManagement;
+using Amazon.SimpleSystemsManagement.Model;
+using Bookstore.Common;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using NLog;
+using NLog.Web;
+using System.Security.Claims;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Initialize BookstoreConfiguration from IConfiguration
+BookstoreConfiguration.Initialize(builder.Configuration);
+
+// Fetch remote configuration from AWS SSM if needed
+ConfigurationSetup.ConfigureConfiguration(builder.Configuration);
+
+// Re-initialize after SSM fetch
+BookstoreConfiguration.Initialize(builder.Configuration);
+
+// Logging
+builder.Logging.ClearProviders();
+builder.Host.UseNLog();
+LoggingSetup.ConfigureLogging(BookstoreConfiguration.GetSetting("Services/LoggingService"));
+
+// MVC
+builder.Services.AddControllersWithViews();
+
+// EF Core
+var connectionString = BookstoreConfiguration.GetConnectionString("BookstoreDatabaseConnection");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// Domain services
+builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IReferenceDataService, ReferenceDataService>();
+builder.Services.AddScoped<IOfferService, OfferService>();
+builder.Services.AddScoped<ICustomerService, CustomerService>();
+builder.Services.AddScoped<IAddressService, AddressService>();
+builder.Services.AddScoped<IShoppingCartService, ShoppingCartService>();
+builder.Services.AddScoped<IImageResizeService, ImageResizeService>();
+
+// Repositories
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<IAddressRepository, AddressRepository>();
+builder.Services.AddScoped<IBookRepository, BookRepository>();
+builder.Services.AddScoped<IOfferRepository, OfferRepository>();
+builder.Services.AddScoped<IShoppingCartRepository, ShoppingCartRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IReferenceDataRepository, ReferenceDataRepository>();
+builder.Services.AddScoped(typeof(IPaginatedList<>), typeof(PaginatedList<>));
+
+// File service
+if (BookstoreConfiguration.GetSetting("Services/FileService") == "aws")
+{
+    builder.Services.AddSingleton<IAmazonS3, AmazonS3Client>();
+    builder.Services.AddScoped<IFileService, S3FileService>();
+}
+else
+{
+    builder.Services.AddSingleton<IFileService>(sp =>
+    {
+        var env = sp.GetRequiredService<IWebHostEnvironment>();
+        return new LocalFileService(env.WebRootPath);
+    });
+}
+
+// Image validation service
+if (BookstoreConfiguration.GetSetting("Services/ImageValidationService") == "aws")
+{
+    builder.Services.AddSingleton<IAmazonRekognition, AmazonRekognitionClient>();
+    builder.Services.AddScoped<IImageValidationService, RekognitionImageValidationService>();
+}
+else
+{
+    builder.Services.AddScoped<IImageValidationService, LocalImageValidationService>();
+}
+
+// Authentication
+if (BookstoreConfiguration.GetSetting("Services/Authentication") == "aws")
+{
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    })
+    .AddCookie()
+    .AddOpenIdConnect(options =>
+    {
+        options.ClientId = BookstoreConfiguration.GetSetting("Authentication/Cognito/LocalClientId");
+        options.MetadataAddress = BookstoreConfiguration.GetSetting("Authentication/Cognito/MetadataAddress");
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.SaveTokens = true;
+        options.UseTokenLifetime = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            NameClaimType = "cognito:username",
+            RoleClaimType = "cognito:groups"
+        };
+        options.Events = new OpenIdConnectEvents
+        {
+            OnRedirectToIdentityProvider = ctx =>
+            {
+                ctx.ProtocolMessage.RedirectUri = $"{ctx.Request.Scheme}://{ctx.Request.Host}/signin-oidc";
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async ctx =>
+            {
+                var service = ctx.HttpContext.RequestServices.GetRequiredService<ICustomerService>();
+                var identity = ctx.Principal?.Identity as ClaimsIdentity;
+                if (identity == null) return;
+
+                var dto = new CreateOrUpdateCustomerDto(
+                    identity.GetSub(),
+                    identity.Name ?? string.Empty,
+                    identity.FindFirst(c => c.Type.Contains("givenname"))?.Value ?? string.Empty,
+                    identity.FindFirst(c => c.Type.Contains("surname"))?.Value ?? string.Empty);
+
+                await service.CreateOrUpdateCustomerAsync(dto);
+            }
+        };
+    });
+}
+else
+{
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.LoginPath = "/Authentication/Login";
+        });
+    builder.Services.AddScoped<LocalAuthenticationMiddleware>();
+}
+
+builder.Services.AddHttpContextAccessor();
+
+var app = builder.Build();
+
+// Seed database
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.EnsureCreated();
+    BookstoreDbInitializer.Seed(db);
+}
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+}
+
+app.UseStaticFiles();
+app.UseRouting();
+
+if (BookstoreConfiguration.GetSetting("Services/Authentication") != "aws")
+{
+    app.UseMiddleware<LocalAuthenticationMiddleware>();
+}
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "Admin_default",
+    pattern: "Admin/{controller=Dashboard}/{action=Index}/{id?}",
+    defaults: new { area = "Admin" },
+    constraints: null,
+    dataTokens: new { area = "Admin" });
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
