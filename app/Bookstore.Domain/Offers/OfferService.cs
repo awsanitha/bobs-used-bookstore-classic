@@ -1,23 +1,15 @@
-﻿using Bookstore.Domain.Customers;
+using Bookstore.Domain.Customers;
 using Bookstore.Domain.Orders;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Bookstore.Domain.Offers
 {
     public interface IOfferService
     {
         Task<IPaginatedList<Offer>> GetOffersAsync(OfferFilters filters, int pageIndex, int pageSize);
-
         Task<IEnumerable<Offer>> GetOffersAsync(string sub);
-
-        Task<Offer> GetOfferAsync(int offerId);
-
+        Task<Offer?> GetOfferAsync(int offerId);
         Task CreateOfferAsync(CreateOfferDto createOfferDto);
-
         Task UpdateOfferStatusAsync(UpdateOfferStatusDto updateOfferStatusDto);
-
         Task<OfferStatistics> GetStatisticsAsync();
     }
 
@@ -42,14 +34,15 @@ namespace Bookstore.Domain.Offers
             return await offerRepository.ListAsync(sub);
         }
 
-        public async Task<Offer> GetOfferAsync(int id)
+        public async Task<Offer?> GetOfferAsync(int id)
         {
             return await offerRepository.GetAsync(id);
         }
 
         public async Task CreateOfferAsync(CreateOfferDto dto)
         {
-            var customer = await customerRepository.GetAsync(dto.CustomerSub);
+            var customer = await customerRepository.GetAsync(dto.CustomerSub)
+                ?? throw new InvalidOperationException($"Customer not found: {dto.CustomerSub}");
 
             var offer = new Offer(
                 customer.Id,
@@ -63,16 +56,15 @@ namespace Bookstore.Domain.Offers
                 dto.BookPrice);
 
             await offerRepository.AddAsync(offer);
-
             await offerRepository.SaveChangesAsync();
         }
 
         public async Task UpdateOfferStatusAsync(UpdateOfferStatusDto dto)
         {
-            var offer = await GetOfferAsync(dto.OfferId);
+            var offer = await GetOfferAsync(dto.OfferId)
+                ?? throw new InvalidOperationException($"Offer not found: {dto.OfferId}");
 
             offer.OfferStatus = dto.Status;
-
             offer.UpdatedOn = DateTime.UtcNow;
 
             await offerRepository.SaveChangesAsync();
@@ -80,7 +72,7 @@ namespace Bookstore.Domain.Offers
 
         public async Task<OfferStatistics> GetStatisticsAsync()
         {
-            return (await offerRepository.GetStatisticsAsync()) ?? new OfferStatistics();
+            return await offerRepository.GetStatisticsAsync() ?? new OfferStatistics();
         }
     }
 }
