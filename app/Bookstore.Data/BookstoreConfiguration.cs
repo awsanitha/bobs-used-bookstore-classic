@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace BobsBookstoreClassic.Data
 {
@@ -13,22 +13,31 @@ namespace BobsBookstoreClassic.Data
         private readonly Dictionary<string, string> _appSettings = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _connectionStrings = new Dictionary<string, string>();
 
-        private BookstoreConfiguration()
-        {
-            foreach (string key in ConfigurationManager.AppSettings)
-            {
-                _appSettings[key] = ConfigurationManager.AppSettings[key];
+        private BookstoreConfiguration() { }
 
-                if (Environment.GetEnvironmentVariable(key) != null)
+        public static void Initialize(IConfiguration configuration)
+        {
+            foreach (var kvp in configuration.AsEnumerable())
+            {
+                if (kvp.Value == null) continue;
+
+                if (kvp.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase))
                 {
-                    _appSettings[key] = Environment.GetEnvironmentVariable(key);
+                    var name = kvp.Key.Substring("ConnectionStrings:".Length);
+                    Instance._connectionStrings[name] = kvp.Value;
+                }
+                else
+                {
+                    // Normalize "Services/Authentication" style keys from appsettings
+                    Instance._appSettings[kvp.Key] = kvp.Value;
                 }
             }
 
-            foreach (ConnectionStringSettings connectionStringSettings in ConfigurationManager.ConnectionStrings)
+            // Also load environment variable overrides
+            foreach (var key in new List<string>(Instance._appSettings.Keys))
             {
-                _connectionStrings[connectionStringSettings.Name] = connectionStringSettings.ConnectionString;
-
+                var envVal = Environment.GetEnvironmentVariable(key);
+                if (envVal != null) Instance._appSettings[key] = envVal;
             }
         }
 
@@ -39,13 +48,13 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetSetting(string key)
         {
-            return Instance._appSettings[key];
+            Instance._appSettings.TryGetValue(key, out var value);
+            return value;
         }
 
         public static T GetSetting<T>(string key)
         {
-            var value = Instance._appSettings[key];
-
+            var value = GetSetting(key);
             return (T)Convert.ChangeType(value, typeof(T));
         }
 
@@ -56,8 +65,8 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetConnectionString(string key)
         {
-            return Instance._connectionStrings[key];
+            Instance._connectionStrings.TryGetValue(key, out var value);
+            return value;
         }
-
     }
 }
