@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bookstore.Domain
 {
@@ -13,12 +13,11 @@ namespace Bookstore.Domain
         private readonly int pageSize;
 
         public int PageIndex { get; private set; }
-
         public int TotalPages { get; private set; }
 
-        private PaginatedList(){ }
+        private PaginatedList() { }
 
-        public PaginatedList(IQueryable<T> source, int pageIndex, int pageSize) 
+        public PaginatedList(IQueryable<T> source, int pageIndex, int pageSize)
         {
             this.source = source;
             this.pageIndex = pageIndex;
@@ -31,21 +30,16 @@ namespace Bookstore.Domain
             var items = await source.OrderBy(x => x.Id).Skip((pageIndex - 1) * pageSize).Take(pageSize).ToListAsync();
 
             PageIndex = pageIndex;
-
             TotalPages = (int)Math.Ceiling(count / (double)pageSize);
 
             AddRange(items);
         }
 
         public bool HasPreviousPage => PageIndex > 1;
-
         public bool HasNextPage => PageIndex < TotalPages;
 
-        //TODO Consider pulling this out into its own class, e.g. PaginationButtonGenerator
         public IEnumerable<int> GetPageList(int count)
         {
-            //https://jithilmt.medium.com/logic-of-building-a-pagination-ui-component-a-thought-process-f057ee2d487e
-
             var pagesCount = 1;
             var newPagesCount = 1;
             var start = PageIndex;
@@ -53,26 +47,10 @@ namespace Bookstore.Domain
 
             while (pagesCount < count)
             {
-                if (end + 1 <= TotalPages)
-                {
-                    end++;
-                    newPagesCount++;
-                }
-
-                if (start - 1 > 0)
-                {
-                    start--;
-                    newPagesCount++;
-                }
-
-                if (newPagesCount == pagesCount)
-                {
-                    break;
-                }
-                else
-                {
-                    pagesCount = newPagesCount;
-                }
+                if (end + 1 <= TotalPages) { end++; newPagesCount++; }
+                if (start - 1 > 0) { start--; newPagesCount++; }
+                if (newPagesCount == pagesCount) break;
+                else pagesCount = newPagesCount;
             }
 
             return Enumerable.Range(start, pagesCount);
