@@ -1,27 +1,6 @@
-﻿using System.Web;
-using System.Web.Mvc;
-using System.Web.Optimization;
-using System.Web.Routing;
-using NLog;
-
+// Global.asax.cs is not used in ASP.NET Core.
+// Application startup is handled by Program.cs
 namespace Bookstore.Web
 {
-    public class MvcApplication : HttpApplication
-    {
-        protected void Application_Start()
-        {
-            AreaRegistration.RegisterAllAreas();
-            FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
-            RouteConfig.RegisterRoutes(RouteTable.Routes);
-            BundleConfig.RegisterBundles(BundleTable.Bundles);
-        }
-
-        protected void Application_Error()
-        {
-            var ex = Server.GetLastError();
-            var logger = LogManager.GetCurrentClassLogger();
-
-            logger.Error(ex);
-        }
-    }
+    // MvcApplication is no longer needed - startup logic is in Program.cs
 }

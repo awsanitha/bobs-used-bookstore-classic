@@ -1,21 +1,6 @@
-﻿using Microsoft.Owin;
-using Owin;
-
-[assembly: OwinStartup(typeof(Bookstore.Web.Startup))]
-
+// Startup logic has been migrated to Program.cs
+// This file is no longer used.
 namespace Bookstore.Web
 {
-    public class Startup
-    {
-        public void Configuration(IAppBuilder app)
-        {
-            LoggingSetup.ConfigureLogging();
-
-            ConfigurationSetup.ConfigureConfiguration();
-
-            DependencyInjectionSetup.ConfigureDependencyInjection(app);
-
-            AuthenticationConfig.ConfigureAuthentication(app);
-        }
-    }
+    // Application startup is now handled by Program.cs
 }

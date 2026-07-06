@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace BobsBookstoreClassic.Data
 {
@@ -13,22 +13,53 @@ namespace BobsBookstoreClassic.Data
         private readonly Dictionary<string, string> _appSettings = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _connectionStrings = new Dictionary<string, string>();
 
-        private BookstoreConfiguration()
-        {
-            foreach (string key in ConfigurationManager.AppSettings)
-            {
-                _appSettings[key] = ConfigurationManager.AppSettings[key];
+        private BookstoreConfiguration() { }
 
-                if (Environment.GetEnvironmentVariable(key) != null)
+        /// <summary>
+        /// Initialize BookstoreConfiguration from ASP.NET Core IConfiguration.
+        /// Call this from Program.cs before any services use this class.
+        /// </summary>
+        public static void Initialize(IConfiguration configuration)
+        {
+            // Load app settings
+            foreach (var kvp in configuration.AsEnumerable())
+            {
+                if (kvp.Value != null)
                 {
-                    _appSettings[key] = Environment.GetEnvironmentVariable(key);
+                    Instance._appSettings[kvp.Key] = kvp.Value;
+
+                    // Also allow environment variable overrides (key with "/" replaced by "_" and ":")
+                    var envKey = kvp.Key.Replace("/", "__").Replace(":", "__");
+                    var envValue = Environment.GetEnvironmentVariable(envKey);
+                    if (envValue != null)
+                    {
+                        Instance._appSettings[kvp.Key] = envValue;
+                    }
                 }
             }
 
-            foreach (ConnectionStringSettings connectionStringSettings in ConfigurationManager.ConnectionStrings)
+            // Load connection strings from ConnectionStrings section
+            var connectionStringsSection = configuration.GetSection("ConnectionStrings");
+            foreach (var child in connectionStringsSection.GetChildren())
             {
-                _connectionStrings[connectionStringSettings.Name] = connectionStringSettings.ConnectionString;
+                if (child.Value != null)
+                {
+                    Instance._connectionStrings[child.Key] = child.Value;
+                }
+            }
 
+            // Also check environment variables for Services/* keys
+            foreach (var key in new[] {
+                "Services/Authentication", "Services/Database", "Services/FileService",
+                "Services/ImageValidationService", "Services/LoggingService"
+            })
+            {
+                var envKey = key.Replace("/", "__");
+                var envValue = Environment.GetEnvironmentVariable(envKey);
+                if (envValue != null)
+                {
+                    Instance._appSettings[key] = envValue;
+                }
             }
         }
 
@@ -39,13 +70,18 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetSetting(string key)
         {
-            return Instance._appSettings[key];
+            if (Instance._appSettings.TryGetValue(key, out var value))
+                return value;
+            // Also try colon-separated form (ASP.NET Core config uses : as separator)
+            var colonKey = key.Replace("/", ":");
+            if (Instance._appSettings.TryGetValue(colonKey, out var colonValue))
+                return colonValue;
+            return string.Empty;
         }
 
         public static T GetSetting<T>(string key)
         {
-            var value = Instance._appSettings[key];
-
+            var value = GetSetting(key);
             return (T)Convert.ChangeType(value, typeof(T));
         }
 
@@ -56,8 +92,9 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetConnectionString(string key)
         {
-            return Instance._connectionStrings[key];
+            if (Instance._connectionStrings.TryGetValue(key, out var value))
+                return value;
+            return string.Empty;
         }
-
     }
 }
