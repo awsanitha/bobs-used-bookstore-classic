@@ -1,24 +1,6 @@
-﻿using System.Web.Mvc;
-
+// Area registration is not needed in ASP.NET Core.
+// Areas are auto-discovered via [Area] attribute on controllers.
 namespace Bookstore.Web.Areas
 {
-    public class AdminAreaRegistration : AreaRegistration 
-    {
-        public override string AreaName 
-        {
-            get 
-            {
-                return "Admin";
-            }
-        }
-
-        public override void RegisterArea(AreaRegistrationContext context) 
-        {
-            context.MapRoute(
-                "Admin_default",
-                "Admin/{controller}/{action}/{id}",
-                new { action = "Index", id = UrlParameter.Optional }, namespaces: new[] { "Bookstore.Web.Areas.Admin.Controllers" }
-            );
-        }
-    }
+    // AdminAreaRegistration is not used in ASP.NET Core
 }

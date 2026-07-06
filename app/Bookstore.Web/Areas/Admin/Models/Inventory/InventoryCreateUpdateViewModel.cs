@@ -1,9 +1,9 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Web;
-using System.Web.Mvc;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Bookstore.Domain.Books;
 using Bookstore.Domain.ReferenceData;
 using Bookstore.Web.Helpers;
@@ -39,15 +39,15 @@ namespace Bookstore.Web.Areas.Admin.Models.Inventory
         public int Id { get; set; }
 
         [Required]
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         [Required]
-        public string Author { get; set; }
+        public string? Author { get; set; }
 
         public int Year { get; set; }
 
         [Required]
-        public string ISBN { get; set; }
+        public string? ISBN { get; set; }
 
         public IEnumerable<SelectListItem> Publishers { get; set; } = new List<SelectListItem>();
         
@@ -82,11 +82,11 @@ namespace Bookstore.Web.Areas.Admin.Models.Inventory
         [MaxFileSize(2*1024*1024)]
         [ImageTypes(new string[] {".png", ".jpg", ".jpeg"})]
         [DisplayName("Cover image")]
-        public HttpPostedFileBase CoverImage { get; set; }
+        public IFormFile? CoverImage { get; set; }
         
-        public string CoverImageUrl { get; set; }
+        public string? CoverImageUrl { get; set; }
 
-        public string Summary { get; set; }
+        public string? Summary { get; set; }
 
         public void AddReferenceData(IEnumerable<ReferenceDataItem> referenceDataItems)
         {
