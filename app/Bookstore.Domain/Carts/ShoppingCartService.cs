@@ -28,7 +28,8 @@ namespace Bookstore.Domain.Carts
 
         public async Task<ShoppingCart> GetShoppingCartAsync(string shoppingCartCorrelationId)
         {
-            return await shoppingCartRepository.GetAsync(shoppingCartCorrelationId);
+            return await shoppingCartRepository.GetAsync(shoppingCartCorrelationId)
+                ?? new ShoppingCart(shoppingCartCorrelationId);
         }
 
         public async Task AddToShoppingCartAsync(AddToShoppingCartDto dto)
@@ -91,7 +92,7 @@ namespace Bookstore.Domain.Carts
         {
             var shoppingCart = await shoppingCartRepository.GetAsync(dto.CorrelationId);
 
-            shoppingCart.RemoveShoppingCartItemById(dto.ShoppingCartItemId);
+            shoppingCart?.RemoveShoppingCartItemById(dto.ShoppingCartItemId);
 
             await shoppingCartRepository.SaveChangesAsync();
         }

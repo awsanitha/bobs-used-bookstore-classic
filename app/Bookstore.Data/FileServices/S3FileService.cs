@@ -4,7 +4,7 @@ using Amazon.S3.Transfer;
 using Bookstore.Domain;
 using System.IO;
 using System.Threading.Tasks;
-using BobsBookstoreClassic.Data;
+using Bookstore.Data;
 
 namespace Bookstore.Data.FileServices
 {

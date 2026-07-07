@@ -1,34 +1,57 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Configuration;
+using Microsoft.Extensions.Configuration;
 
-namespace BobsBookstoreClassic.Data
+namespace Bookstore.Data
 {
+    /// <summary>
+    /// Provides a static/singleton-style accessor for application configuration.
+    /// In ASP.NET Core, settings should be injected via IConfiguration.
+    /// This class bridges the gap for code that cannot be easily refactored to use DI.
+    /// </summary>
     public sealed class BookstoreConfiguration
     {
         private static readonly Lazy<BookstoreConfiguration> Lazy = new Lazy<BookstoreConfiguration>(() => new BookstoreConfiguration());
 
         private static BookstoreConfiguration Instance => Lazy.Value;
 
-        private readonly Dictionary<string, string> _appSettings = new Dictionary<string, string>();
-        private readonly Dictionary<string, string> _connectionStrings = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _appSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, string> _connectionStrings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        private BookstoreConfiguration()
+        private BookstoreConfiguration() { }
+
+        /// <summary>
+        /// Initialise from ASP.NET Core IConfiguration. Call once at startup.
+        /// </summary>
+        public static void Initialize(IConfiguration configuration)
         {
-            foreach (string key in ConfigurationManager.AppSettings)
+            foreach (var setting in configuration.AsEnumerable())
             {
-                _appSettings[key] = ConfigurationManager.AppSettings[key];
+                if (setting.Value == null) continue;
 
-                if (Environment.GetEnvironmentVariable(key) != null)
+                if (setting.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase))
                 {
-                    _appSettings[key] = Environment.GetEnvironmentVariable(key);
+                    var name = setting.Key["ConnectionStrings:".Length..];
+                    Instance._connectionStrings[name] = setting.Value;
+                }
+                else
+                {
+                    // Normalize "Services:Authentication" → "Services/Authentication" for backward compat
+                    var key = setting.Key.Replace(':', '/');
+                    Instance._appSettings[key] = setting.Value;
                 }
             }
 
-            foreach (ConnectionStringSettings connectionStringSettings in ConfigurationManager.ConnectionStrings)
+            // Also check environment variables using slash-style keys
+            foreach (var envVar in System.Environment.GetEnvironmentVariables().Keys)
             {
-                _connectionStrings[connectionStringSettings.Name] = connectionStringSettings.ConnectionString;
-
+                var key = envVar?.ToString();
+                if (string.IsNullOrEmpty(key)) continue;
+                var value = System.Environment.GetEnvironmentVariable(key);
+                if (value != null)
+                {
+                    Instance._appSettings[key] = value;
+                }
             }
         }
 
@@ -39,13 +62,12 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetSetting(string key)
         {
-            return Instance._appSettings[key];
+            return Instance._appSettings.TryGetValue(key, out var val) ? val : string.Empty;
         }
 
         public static T GetSetting<T>(string key)
         {
-            var value = Instance._appSettings[key];
-
+            var value = GetSetting(key);
             return (T)Convert.ChangeType(value, typeof(T));
         }
 
@@ -56,8 +78,7 @@ namespace BobsBookstoreClassic.Data
 
         public static string GetConnectionString(string key)
         {
-            return Instance._connectionStrings[key];
+            return Instance._connectionStrings.TryGetValue(key, out var val) ? val : string.Empty;
         }
-
     }
 }
