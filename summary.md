@@ -1,6 +1,6 @@
 # Migration Summary: .NET Framework 4.8 → net10.0
 
-## Status: ✅ BUILD SUCCEEDED — 0 Compilation Errors
+## Status: ✅ BUILD SUCCEEDED — 0 Compilation Errors, 0 Code Warnings
 
 `dotnet build BobsBookstoreClassic.sln` exits with code 0.
 
@@ -28,6 +28,7 @@
 - **Replaced**: `IAppBuilder` (OWIN) with ASP.NET Core middleware pipeline
 - **Replaced**: `Autofac` DI with built-in `Microsoft.Extensions.DependencyInjection`
 - **Replaced**: `Microsoft.Owin.Security.Cookies` + `Microsoft.Owin.Security.OpenIdConnect` with `Microsoft.AspNetCore.Authentication.*`
+- **Removed**: `Microsoft.AspNetCore.Authentication.Cookies` NuGet reference (included in ASP.NET Core shared framework for net10.0)
 
 #### Controllers (System.Web.Mvc → Microsoft.AspNetCore.Mvc)
 - All controllers: `ActionResult` → `IActionResult`, namespace updated
@@ -64,6 +65,11 @@
 #### Models / ViewModels
 - `InventoryCreateUpdateViewModel`: `HttpPostedFileBase CoverImage` → `IFormFile? CoverImage`
 - All ViewModels: `using System.Web.Mvc;` → `using Microsoft.AspNetCore.Mvc.Rendering;`
+- `OrderDetailsViewModel`: String properties initialized with `= null!` to satisfy nullable analysis
+- `OrderDetailsItemViewModel`: String properties initialized with `= null!`
+- `OfferIndexViewModel`: `Filters` property initialized to `new OfferFilters()`
+- `OfferIndexItemViewModel`: String properties initialized with `= null!`
+- `InventoryDetailsViewModel`: String properties initialized with `= null!`
 
 #### Domain
 - `IShoppingCartRepository.GetAsync()`: Return type `Task<ShoppingCart>` → `Task<ShoppingCart?>`
@@ -76,13 +82,22 @@
 #### Views
 - `Areas/Admin/Views/Orders/Index.cshtml`: `Html.EnumDropDownListFor` → `Html.DropDownListFor` with `Html.GetEnumSelectList<OrderStatus>()`
 - `Areas/Admin/Views/Offers/Index.cshtml`: `Html.EnumDropDownListFor` → `Html.DropDownListFor` with `Html.GetEnumSelectList<OfferStatus>()`
+- All `@Html.Partial(...)` calls replaced with `<partial name="..." />` tag helpers (eliminates MVC1000 deadlock warnings)
+- All `@{ Html.RenderPartial(...); }` calls replaced with `<partial name="..." />` tag helpers
+
+---
+
+## Remaining Warnings (all non-blocking)
+
+The 532 remaining warnings are exclusively NuGet security advisories for transitive dependencies:
+- **NU1901/NU1902/NU1903**: Package vulnerability notifications for `Magick.NET-Q8-AnyCPU` 14.6.0 and `System.Security.Cryptography.Xml` 9.0.0 (transitive)
+- **NU1603**: Dependency version resolution notices
+
+There are **zero CS compiler warnings** and **zero MVC warnings**.
 
 ---
 
 ## Next Steps
-
-### Warnings to Address (764 total — all non-blocking)
-1. **MVC1000 warnings** (764): `Html.Partial()` calls in Razor views should be replaced with `<partial name="..." />` Tag Helper or `await Html.PartialAsync()`. This does not affect compilation but is recommended to avoid potential deadlocks under load.
 
 ### Runtime / Deployment Considerations
 1. **EF Core Migrations**: The `HasData()` seeding added in `BookstoreDbSeeder` will only apply when `dotnet ef database update` is run or `EnsureCreated()` is called at startup. Add the following to `Program.cs` if fresh DB initialization is required:
@@ -98,7 +113,7 @@
 
 4. **HTTPS Redirection**: `app.UseHttpsRedirection()` is not currently enabled; add if needed.
 
-5. **Magick.NET**: Version 14.6.0 has numerous known vulnerabilities. Consider upgrading to the latest release.
+5. **Magick.NET**: Version 14.6.0 has known vulnerabilities. Consider upgrading to the latest release to eliminate NU1902 warnings.
 
 6. **AWS Cognito Redirect URI**: In the original code, the redirect URI was dynamically built from the current request. The migrated OpenIdConnect events preserve this behavior.
 
@@ -107,5 +122,3 @@
 8. **BookstoreConfiguration.Initialize()**: This is called once at startup. If settings are loaded from SSM after initialization, the `AddSetting()` / `AddConnectionString()` methods correctly patch the in-memory cache.
 
 9. **Dockerfile**: The existing `Dockerfile` uses Windows containers. A Linux-compatible Dockerfile (per `19-linux-containerization.md`) is recommended for ECS on Fargate with Linux containers.
-
-10. **`CookieOptions` type conflict**: `HttpContextExtensions` defines a local `CookieOptions` — ensure it uses `Microsoft.AspNetCore.Http.CookieOptions` (it does, confirmed).
