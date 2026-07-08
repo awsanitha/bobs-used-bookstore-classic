@@ -1,9 +1,9 @@
-﻿using Bookstore.Domain.Addresses;
+using Bookstore.Domain.Addresses;
 using Bookstore.Domain.Carts;
 using Bookstore.Domain.Orders;
 using Bookstore.Web.Helpers;
 using Bookstore.Web.ViewModel.Checkout;
-using System.Web.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
 namespace Bookstore.Web.Controllers
@@ -23,7 +23,7 @@ namespace Bookstore.Web.Controllers
             this.addressService = addressService;
         }
 
-        public async Task<ActionResult> Index()
+        public async Task<IActionResult> Index()
         {
             var shoppingCart = await shoppingCartService.GetShoppingCartAsync(HttpContext.GetShoppingCartCorrelationId());
             var addresses = await addressService.GetAddressesAsync(User.GetSub());
@@ -32,18 +32,18 @@ namespace Bookstore.Web.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> Index(CheckoutIndexViewModel model)
+        public async Task<IActionResult> Index(CheckoutIndexViewModel model)
         {
-            if(!ModelState.IsValid) return  View(model);
+            if (!ModelState.IsValid) return View(model);
 
-            var dto = new CreateOrderDto(User.GetSub(), HttpContext.GetShoppingCartCorrelationId(), model.SelectedAddressId);
+            var dto = new CreateOrderDto(User.GetSub() ?? string.Empty, HttpContext.GetShoppingCartCorrelationId(), model.SelectedAddressId);
 
             var orderId = await orderService.CreateOrderAsync(dto);
 
             return RedirectToAction("Finished", new { orderId });
         }
 
-        public async Task<ActionResult> Finished(int orderId)
+        public async Task<IActionResult> Finished(int orderId)
         {
             var order = await orderService.GetOrderAsync(orderId);
 
