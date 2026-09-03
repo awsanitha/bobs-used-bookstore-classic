@@ -1,63 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
+using Microsoft.Extensions.Configuration;
 
-namespace BobsBookstoreClassic.Data
+namespace Bookstore.Data
 {
     public sealed class BookstoreConfiguration
     {
-        private static readonly Lazy<BookstoreConfiguration> Lazy = new Lazy<BookstoreConfiguration>(() => new BookstoreConfiguration());
+        private readonly IConfiguration _configuration;
+        private readonly Dictionary<string, string> _overrides = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _connectionStringOverrides = new Dictionary<string, string>();
 
-        private static BookstoreConfiguration Instance => Lazy.Value;
-
-        private readonly Dictionary<string, string> _appSettings = new Dictionary<string, string>();
-        private readonly Dictionary<string, string> _connectionStrings = new Dictionary<string, string>();
-
-        private BookstoreConfiguration()
+        public BookstoreConfiguration(IConfiguration configuration)
         {
-            foreach (string key in ConfigurationManager.AppSettings)
-            {
-                _appSettings[key] = ConfigurationManager.AppSettings[key];
+            _configuration = configuration;
+        }
 
-                if (Environment.GetEnvironmentVariable(key) != null)
-                {
-                    _appSettings[key] = Environment.GetEnvironmentVariable(key);
-                }
+        public void AddSetting(string key, string value)
+        {
+            _overrides[key] = value;
+        }
+
+        public string GetSetting(string key)
+        {
+            if (_overrides.TryGetValue(key, out var overrideValue))
+            {
+                return overrideValue;
             }
 
-            foreach (ConnectionStringSettings connectionStringSettings in ConfigurationManager.ConnectionStrings)
+            var envValue = Environment.GetEnvironmentVariable(key);
+            if (envValue != null)
             {
-                _connectionStrings[connectionStringSettings.Name] = connectionStringSettings.ConnectionString;
-
+                return envValue;
             }
+
+            return _configuration[key];
         }
 
-        public static void AddSetting(string key, string value)
+        public T GetSetting<T>(string key)
         {
-            Instance._appSettings[key] = value;
-        }
-
-        public static string GetSetting(string key)
-        {
-            return Instance._appSettings[key];
-        }
-
-        public static T GetSetting<T>(string key)
-        {
-            var value = Instance._appSettings[key];
+            var value = GetSetting(key);
 
             return (T)Convert.ChangeType(value, typeof(T));
         }
 
-        public static void AddConnectionString(string key, string value)
+        public void AddConnectionString(string key, string value)
         {
-            Instance._connectionStrings[key] = value;
+            _connectionStringOverrides[key] = value;
         }
 
-        public static string GetConnectionString(string key)
+        public string GetConnectionString(string key)
         {
-            return Instance._connectionStrings[key];
-        }
+            if (_connectionStringOverrides.TryGetValue(key, out var overrideValue))
+            {
+                return overrideValue;
+            }
 
+            return _configuration.GetConnectionString(key);
+        }
     }
 }

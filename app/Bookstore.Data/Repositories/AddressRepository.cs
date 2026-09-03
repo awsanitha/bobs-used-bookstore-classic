@@ -1,6 +1,7 @@
-﻿using Bookstore.Domain.Addresses;
+using Microsoft.EntityFrameworkCore;
+using Bookstore.Domain.Addresses;
 using System.Collections.Generic;
-using System.Data.Entity;
+
 using System.Linq;
 using System.Threading.Tasks;
 
