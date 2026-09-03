@@ -3,7 +3,8 @@ using Bookstore.Web.ViewModel;
 using Bookstore.Domain.Books;
 using System.Threading.Tasks;
 using Bookstore.Web.ViewModel.Home;
-using System.Web.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Bookstore.Web.Controllers
 {
