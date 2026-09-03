@@ -1,9 +1,10 @@
-﻿using Bookstore.Domain;
+using Microsoft.EntityFrameworkCore;
+using Bookstore.Domain;
 using Bookstore.Domain.Books;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data.Entity;
+
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -21,10 +22,10 @@ namespace Bookstore.Data.Repositories
         async Task<Book> IBookRepository.GetAsync(int id)
         {
             return await dbContext.Book
-                .Include("Genre")
-                .Include("Publisher")
-                .Include("BookType")
-                .Include("Condition")
+                .Include(x => x.Genre)
+                .Include(x => x.Publisher)
+                .Include(x => x.BookType)
+                .Include(x => x.Condition)
                 .SingleAsync(x => x.Id == id);
         }
 

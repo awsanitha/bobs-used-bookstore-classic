@@ -1,10 +1,10 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS base
 USER app
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /src
 COPY ["app/Bookstore.Cdk/Bookstore.Cdk.csproj", "app/Bookstore.Cdk/"]
 COPY ["app/Bookstore.Data/Bookstore.Data.csproj", "app/Bookstore.Data/"]
