@@ -80,6 +80,8 @@ public class CoreStack : Stack
 
         // Place a CloudFront distribution in front of the storage bucket. S3 will only respond to
         // requests for objects if that request came from the CloudFront distribution.
+        // Suppress obsolete warnings for CloudFrontWebDistribution — CDK API migration is out of scope
+        #pragma warning disable CS0618, CS0612
         var distProps = new CloudFrontWebDistributionProps
         {
             OriginConfigs = new[]
@@ -114,6 +116,7 @@ public class CoreStack : Stack
             ParameterName = $"/{Constants.AppName}/Files/CloudFrontDomain",
             StringValue = $"https://{distribution.DistributionDomainName}"
         });
+        #pragma warning restore CS0618, CS0612
     }
 
     internal void CreateCognitoUserPool()
