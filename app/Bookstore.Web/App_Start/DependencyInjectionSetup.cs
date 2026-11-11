@@ -1,11 +1,6 @@
-﻿using System.IO;
-using System.Reflection;
-using System.Web;
-using System.Web.Mvc;
+using Amazon.Extensions.NETCore.Setup;
 using Amazon.Rekognition;
 using Amazon.S3;
-using Autofac;
-using Autofac.Integration.Mvc;
 using BobsBookstoreClassic.Data;
 using Bookstore.Data;
 using Bookstore.Data.FileServices;
@@ -21,74 +16,73 @@ using Bookstore.Domain.Offers;
 using Bookstore.Domain.Orders;
 using Bookstore.Domain.ReferenceData;
 using Bookstore.Web.Helpers;
-using Owin;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.IO;
 
 namespace Bookstore.Web
 {
     public static class DependencyInjectionSetup
     {
-        public static void ConfigureDependencyInjection(IAppBuilder app)
+        public static void ConfigureServices(IServiceCollection services, IWebHostEnvironment env)
         {
-            var builder = new ContainerBuilder();
+            // Domain services
+            services.AddScoped<IBookService, BookService>();
+            services.AddScoped<IOrderService, OrderService>();
+            services.AddScoped<IReferenceDataService, ReferenceDataService>();
+            services.AddScoped<IOfferService, OfferService>();
+            services.AddScoped<ICustomerService, CustomerService>();
+            services.AddScoped<IAddressService, AddressService>();
+            services.AddScoped<IShoppingCartService, ShoppingCartService>();
+            services.AddScoped<IImageResizeService, ImageResizeService>();
 
-            builder.RegisterControllers(typeof(MvcApplication).Assembly);
-
-            builder.RegisterType<BookService>().As<IBookService>();
-            builder.RegisterType<OrderService>().As<IOrderService>();
-            builder.RegisterType<ReferenceDataService>().As<IReferenceDataService>();
-            builder.RegisterType<OfferService>().As<IOfferService>();
-            builder.RegisterType<CustomerService>().As<ICustomerService>();
-            builder.RegisterType<AddressService>().As<IAddressService>();
-            builder.RegisterType<ShoppingCartService>().As<IShoppingCartService>();
-            builder.RegisterType<ImageResizeService>().As<IImageResizeService>();
-
+            // Database
             var connectionString = BookstoreConfiguration.GetConnectionString("BookstoreDatabaseConnection");
-            builder.RegisterType<ApplicationDbContext>().WithParameter("connectionString", connectionString).InstancePerRequest();
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(connectionString));
 
-            builder.RegisterType<CustomerRepository>().As<ICustomerRepository>();
-            builder.RegisterType<AddressRepository>().As<IAddressRepository>();
-            builder.RegisterType<BookRepository>().As<IBookRepository>();
-            builder.RegisterType<OfferRepository>().As<IOfferRepository>();
-            builder.RegisterType<ShoppingCartRepository>().As<IShoppingCartRepository>();
-            builder.RegisterType<OrderRepository>().As<IOrderRepository>();
-            builder.RegisterType<ReferenceDataRepository>().As<IReferenceDataRepository>();
+            // Repositories
+            services.AddScoped<ICustomerRepository, CustomerRepository>();
+            services.AddScoped<IAddressRepository, AddressRepository>();
+            services.AddScoped<IBookRepository, BookRepository>();
+            services.AddScoped<IOfferRepository, OfferRepository>();
+            services.AddScoped<IShoppingCartRepository, ShoppingCartRepository>();
+            services.AddScoped<IOrderRepository, OrderRepository>();
+            services.AddScoped<IReferenceDataRepository, ReferenceDataRepository>();
 
-            builder.RegisterGeneric(typeof(PaginatedList<>)).As(typeof(IPaginatedList<>)).InstancePerLifetimeScope();
+            // PaginatedList factory
+            services.AddScoped(typeof(IPaginatedList<>), typeof(PaginatedList<>));
 
+            // File service
             if (BookstoreConfiguration.GetSetting("Services/FileService") == "aws")
             {
-                builder.RegisterType<AmazonS3Client>().As<IAmazonS3>();
-                builder.RegisterType<S3FileService>().As<IFileService>();
+                services.AddAWSService<IAmazonS3>();
+                services.AddScoped<IFileService, S3FileService>();
             }
             else
             {
-                var webRootPath = HttpRuntime.AppDomainAppVirtualPath != null ?
-                    Path.Combine(HttpRuntime.AppDomainAppPath, "Content") :
-                    Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-
-                builder.RegisterInstance(new LocalFileService(webRootPath)).As<IFileService>();
+                var contentPath = Path.Combine(env.ContentRootPath, "Content");
+                services.AddSingleton<IFileService>(new LocalFileService(contentPath));
             }
 
+            // Image validation service
             if (BookstoreConfiguration.GetSetting("Services/ImageValidationService") == "aws")
             {
-                builder.RegisterType<AmazonRekognitionClient>().As<IAmazonRekognition>();
-                builder.RegisterType<RekognitionImageValidationService>().As<IImageValidationService>();
+                services.AddAWSService<IAmazonRekognition>();
+                services.AddScoped<IImageValidationService, RekognitionImageValidationService>();
             }
             else
             {
-                builder.RegisterType<LocalImageValidationService>().As<IImageValidationService>();
+                services.AddScoped<IImageValidationService, LocalImageValidationService>();
             }
 
+            // Local auth middleware (registered so it can be resolved from DI)
             if (BookstoreConfiguration.GetSetting("Services/Authentication") != "aws")
             {
-                builder.RegisterType<LocalAuthenticationMiddleware>();
+                services.AddScoped<LocalAuthenticationMiddleware>();
             }
-
-            var container = builder.Build();
-
-            DependencyResolver.SetResolver(new AutofacDependencyResolver(container));
-
-            app.UseAutofacMiddleware(container);
         }
     }
 }
